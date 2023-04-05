@@ -16,13 +16,13 @@ services:
             containerHttpPort: $$cap_container_port
             dockerfileLines:
                 - FROM elasticsearch:$$cap_elasticsearch_version
-                - RUN echo y | bin/elasticsearch-plugin install ingest-attachment -v
+                - RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install -v -b ingest-attachment
             notExposeAsWebApp: 'true'
 caproverOneClickApp:
     variables:
         - id: $$cap_elasticsearch_version
           label: 'Elasticsearch Version Tag'
-          description: 'For Nextcloud works 7.17.9. It includes needed "ingest" plugin. Check out the releases overview: https://hub.docker.com/_/elasticsearch'
+          description: 'For Nextcloud works 7.17.9. It includes needed "ingest-attachment" plugin. Check out the releases overview: https://hub.docker.com/_/elasticsearch'
           defaultValue: 7.17.9
           validRegex: /^([^\s^\/])+$/
         - id: $$cap_elasticsearch_cluster_name

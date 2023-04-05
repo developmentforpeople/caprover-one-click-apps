@@ -1,7 +1,6 @@
 captainVersion: 4
 services:
     $$cap_appname:
-        image: docker.elastic.co/elasticsearch/elasticsearch:$$cap_elasticsearch_version
         volumes:
             - $$cap_appname-elasticsearch-data:/usr/share/elasticsearch/data
         restart: always
@@ -15,16 +14,11 @@ services:
         caproverExtra:
             containerHttpPort: $$cap_container_port
             dockerfileLines:
-                - FROM elasticsearch:$$cap_elasticsearch_version
-                - RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install -v -b ingest-attachment
+                - FROM elasticsearch:7.17.9
+                - RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install -b -v ingest-attachment
             notExposeAsWebApp: 'true'
 caproverOneClickApp:
     variables:
-        - id: $$cap_elasticsearch_version
-          label: 'Elasticsearch Version Tag'
-          description: 'For Nextcloud works 7.17.9. It includes needed "ingest-attachment" plugin. Check out the releases overview: https://hub.docker.com/_/elasticsearch'
-          defaultValue: 7.17.9
-          validRegex: /^([^\s^\/])+$/
         - id: $$cap_elasticsearch_cluster_name
           label: Cluster Name
           description: Only nodes within the same cluster name can be combined

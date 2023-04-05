@@ -32,7 +32,7 @@ caproverOneClickApp:
     variables:
         - id: $$cap_nextcloud_version
           label: NextCloud Version
-          defaultValue: 26.0
+          defaultValue: 25.0
           description: >-
               Check out their Docker page for the valid tags https://hub.docker.com/_/nextcloud?tab=tags
 

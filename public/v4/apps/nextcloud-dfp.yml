@@ -2,7 +2,6 @@ captainVersion: 4
 services:
     $$cap_appname:
         documentation: Taken from https://hub.docker.com/_/nextcloud
-        image: nextcloud:$$cap_nextcloud_version
         volumes:
             - $$cap_appname-data:/var/www/html
         restart: always
@@ -16,6 +15,12 @@ services:
             NEXTCLOUD_ADMIN_USER: $$cap_admin_user
             NEXTCLOUD_ADMIN_PASSWORD: $$cap_admin_pass
             NEXTCLOUD_TRUSTED_DOMAINS: $$cap_appname.$$cap_root_domain $$cap_hostnames
+        caproverExtra:
+            dockerfileLines:
+                - FROM nextcloud:$$cap_nextcloud_version
+                - RUN apt update
+                - RUN apt install -y ffmpeg
+                - RUN apt clean
     $$cap_appname-cron:
         depends_on:
             - $$cap_appname
@@ -26,7 +31,7 @@ services:
         caproverExtra:
             dockerfileLines:
                 - FROM nextcloud:$$cap_nextcloud_version
-                - 'ENTRYPOINT [ "/cron.sh" ] '
+                - ENTRYPOINT ["/cron.sh"]
             notExposeAsWebApp: 'true'
 caproverOneClickApp:
     variables:

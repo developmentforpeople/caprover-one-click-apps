@@ -5,12 +5,18 @@ services:
         environment:
             JUPYTER_ENABLE_LAB: yes
             JUPYTER_TOKEN: "$$cap_jupyter_default_token"
+            GRANT_SUDO: yes
         volumes:
             - $$cap_appname:/home/jovyan/
         caproverExtra:
             containerHttpPort: '8888'
             dockerfileLines:
-                - FROM jupyter/datascience-notebook
+                - FROM jupyter/scipy-notebook
+                - USER root
+                - RUN apt update
+                - RUN apt install -y tesseract-ocr tesseract-ocr-spa
+                - RUN apt clean
+                - USER jovyan
                 - RUN pip install lxml
                 - RUN jupyter server --generate-config -y
 caproverOneClickApp:

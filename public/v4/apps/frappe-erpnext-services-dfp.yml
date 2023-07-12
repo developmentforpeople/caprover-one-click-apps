@@ -1,0 +1,193 @@
+captainVersion: 4
+caproverOneClickApp:
+    isOfficial: true
+    displayName: frappe-erpnext-services-dfp
+    description: Frappe & ERPNext are a full featured business management solution that helps you manage your Website, online selling, Mailing, Accounting, Inventory, Payroll, CRM, Manufacturing, Selling, Purchasing, Project Management and much more.
+    documentation: https://github.com/frappe/frappe_docker && https://docs.erpnext.com/
+    instructions:
+        start: Frappe & ERPNext is a full featured business management solution that helps you manage your Website, online selling, Mailing, Accounting, Inventory, Payroll, CRM, Manufacturing, Selling, Purchasing, Project Management and much more. https://frappeframework.com && https://erpnext.com
+        end: >-
+            Frappe & ERPNext is deployed and will be available on few minutes as $$cap_appname.
+
+
+            Bla bla...
+
+
+            1. Copy below code and ...:
+                ```bash
+                TaskTemplate:
+                    ContainerSpec:
+                        Command: ["bash", "-c", "ls -1 apps > sites/apps.txt && bench set-config -g db_host $DB_HOST && bench set-config -gp db_port $DB_PORT && bench set-config -g redis_cache redis://$REDIS_CACHE && bench set-config -g redis_queue redis://$REDIS_QUEUE && bench set-config -g redis_socketio redis://$REDIS_SOCKETIO && bench set-config -gp socketio_port $SOCKETIO_PORT"]
+                ```
+
+
+            Bla bla...
+    variables:
+        - id: $$cap_volume_prefix
+          label: Docker volumes prefix (Must be the same for bench setup app and frappe framework app) because we share volumes, first for app related to the bench initialization setup and then for the frappe services app.
+          defaultValue: dfp-bench
+        - id: $$cap_erpnext_version
+          label: ERPNext Version
+          defaultValue: v14.29.1
+          description: >-
+              Check out their Docker page for the valid tags https://hub.docker.com/r/frappe/erpnext/tags
+        - id: $$cap_db_host
+          label: Database host
+          defaultValue: srv-captain--global-database-db
+        - id: $$cap_db_port
+          label: Database port
+          defaultValue: 3306
+        - id: $$cap_db_root_password
+          label: Database root password
+          defaultValue: ktU4AFJ6EYJkyFyxoyEXa
+        - id: $$cap_frappe_site_name_header
+          label: FRAPPE_SITE_NAME_HEADER
+          defaultValue: frappe-frontend.app.comomejorar.info
+        - id: $$cap_upstream_real_ip_address
+          label: UPSTREAM_REAL_IP_ADDRESS
+          defaultValue: 127.0.0.1
+        - id: $$cap_upstream_real_ip_header
+          label: UPSTREAM_REAL_IP_HEADER
+          defaultValue: X-Forwarded-For
+        - id: $$cap_upstream_real_ip_recursive
+          label: UPSTREAM_REAL_IP_RECURSIVE
+          defaultValue: off
+        - id: $$cap_proxy_read_timout
+          label: PROXY_READ_TIMOUT
+          defaultValue: 120
+        - id: $$cap_client_max_body_size
+          label: CLIENT_MAX_BODY_SIZE
+          defaultValue: 50m
+
+# By default the image used only contains the `frappe` and `erpnext` apps.
+# See https://github.com/frappe/frappe_docker/blob/main/docs/custom-apps.md
+# about using custom images.
+services:
+
+    $$cap_appname-redis-socketio:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+        image: redis:6.2-alpine
+        volumes:
+            - $$cap_appname-redis-socketio-data:/data
+
+    $$cap_appname-websocket:
+        depends_on:
+            - $$cap_appname-redis-socketio
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+            dockerfileLines:
+                - FROM frappe/erpnext:$$cap_erpnext_version
+                - CMD ["node", "/home/frappe/frappe-bench/apps/frappe/socketio.js"]
+        volumes:
+            - $$cap_volume_prefix-apps:/home/frappe/frappe-bench/apps
+            - $$cap_volume_prefix-sites:/home/frappe/frappe-bench/sites
+            - $$cap_volume_prefix-logs:/home/frappe/frappe-bench/logs
+
+    $$cap_appname-redis-cache:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+        image: redis:6.2-alpine
+        volumes:
+            - $$cap_appname-redis-cache-data:/data
+
+    $$cap_appname-redis-queue:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+        image: redis:6.2-alpine
+        volumes:
+            - $$cap_appname-redis-queue-data:/data
+
+    $$cap_appname-backend:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+            # containerHttpPort: '8000'
+        image: frappe/erpnext:$$cap_erpnext_version
+        volumes:
+            - $$cap_volume_prefix-apps:/home/frappe/frappe-bench/apps
+            - $$cap_volume_prefix-sites:/home/frappe/frappe-bench/sites
+            - $$cap_volume_prefix-logs:/home/frappe/frappe-bench/logs
+        depends_on:
+            - $$cap_appname-redis-cache
+            - $$cap_appname-redis-queue
+            - $$cap_appname-redis-socketio
+        environment:
+            # Por tenerlos disponibles en esta imagen para backups etc... ¿?¿? pero no necesarios
+            DB_HOST: $$cap_db_host
+            DB_PORT: $$cap_db_port
+            DB_PASSWORD: $$cap_db_root_password
+
+    $$cap_appname-frontend:
+        caproverExtra:
+            containerHttpPort: '8080'
+            dockerfileLines:
+                - FROM frappe/erpnext:$$cap_erpnext_version
+                - CMD ["nginx-entrypoint.sh"]
+        environment:
+            BACKEND: srv-captain--$$cap_appname-backend:8000
+            SOCKETIO: srv-captain--$$cap_appname-websocket:9000
+            FRAPPE_SITE_NAME_HEADER: $$cap_frappe_site_name_header
+            UPSTREAM_REAL_IP_ADDRESS: $$cap_upstream_real_ip_address
+            UPSTREAM_REAL_IP_HEADER: $$cap_upstream_real_ip_header
+            UPSTREAM_REAL_IP_RECURSIVE: $$cap_upstream_real_ip_recursive
+            PROXY_READ_TIMOUT: $$cap_proxy_read_timout
+            CLIENT_MAX_BODY_SIZE: $$cap_client_max_body_size
+        volumes:
+            - $$cap_volume_prefix-apps:/home/frappe/frappe-bench/apps
+            - $$cap_volume_prefix-sites:/home/frappe/frappe-bench/sites
+            - $$cap_volume_prefix-logs:/home/frappe/frappe-bench/logs
+        depends_on:
+            - $$cap_appname-backend
+            - $$cap_appname-websocket
+
+    $$cap_appname-queue-short:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+            dockerfileLines:
+                - FROM frappe/erpnext:$$cap_erpnext_version
+                - CMD ["bench", "worker", "--queue", "short"]
+        volumes:
+            - $$cap_volume_prefix-apps:/home/frappe/frappe-bench/apps
+            - $$cap_volume_prefix-sites:/home/frappe/frappe-bench/sites
+            - $$cap_volume_prefix-logs:/home/frappe/frappe-bench/logs
+        depends_on:
+            - $$cap_appname-backend
+
+    $$cap_appname-queue-default:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+            dockerfileLines:
+                - FROM frappe/erpnext:$$cap_erpnext_version
+                - CMD ["bench", "worker", "--queue", "default"]
+        volumes:
+            - $$cap_volume_prefix-apps:/home/frappe/frappe-bench/apps
+            - $$cap_volume_prefix-sites:/home/frappe/frappe-bench/sites
+            - $$cap_volume_prefix-logs:/home/frappe/frappe-bench/logs
+        depends_on:
+            - $$cap_appname-backend
+
+    $$cap_appname-queue-long:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+            dockerfileLines:
+                - FROM frappe/erpnext:$$cap_erpnext_version
+                - CMD ["bench", "worker", "--queue", "long"]
+        volumes:
+            - $$cap_volume_prefix-apps:/home/frappe/frappe-bench/apps
+            - $$cap_volume_prefix-sites:/home/frappe/frappe-bench/sites
+            - $$cap_volume_prefix-logs:/home/frappe/frappe-bench/logs
+        depends_on:
+            - $$cap_appname-backend
+
+    $$cap_appname-scheduler:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+            dockerfileLines:
+                - FROM frappe/erpnext:$$cap_erpnext_version
+                - CMD ["bench", "schedule"]
+        volumes:
+            - $$cap_volume_prefix-apps:/home/frappe/frappe-bench/apps
+            - $$cap_volume_prefix-sites:/home/frappe/frappe-bench/sites
+            - $$cap_volume_prefix-logs:/home/frappe/frappe-bench/logs
+        depends_on:
+            - $$cap_appname-backend

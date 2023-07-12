@@ -4,6 +4,7 @@ services:
         documentation: Taken from https://hub.docker.com/_/nextcloud
         volumes:
             - $$cap_appname-data:/var/www/html
+            - /media/hetzner_1tb/nextcloud/:/mnt/hetzner_1tb_nextcloud
         restart: always
         environment:
             OVERWRITEPROTOCOL: $$cap_http_https_cors
@@ -37,7 +38,7 @@ caproverOneClickApp:
     variables:
         - id: $$cap_nextcloud_version
           label: NextCloud Version
-          defaultValue: 25.0
+          defaultValue: 26.0.3
           description: >-
               Check out their Docker page for the valid tags https://hub.docker.com/_/nextcloud?tab=tags
 

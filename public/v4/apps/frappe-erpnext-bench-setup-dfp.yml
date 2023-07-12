@@ -1,0 +1,56 @@
+captainVersion: 4
+caproverOneClickApp:
+    isOfficial: true
+    displayName: frappe-erpnext-bench-setup-dfp
+    description: Frappe & ERPNext are a full featured business management solution that helps you manage your Website, online selling, Mailing, Accounting, Inventory, Payroll, CRM, Manufacturing, Selling, Purchasing, Project Management and much more.
+    documentation: https://github.com/frappe/frappe_docker && https://docs.erpnext.com/
+    instructions:
+        start: Frappe & ERPNext is a full featured business management solution that helps you manage your Website, online selling, Mailing, Accounting, Inventory, Payroll, CRM, Manufacturing, Selling, Purchasing, Project Management and much more. https://frappeframework.com && https://erpnext.com
+        end: >-
+            IMPORTANT! You need to copy below code, paste in "Service Update Override" and click "Save & Update". After that, you can install the Frappe framework services app.
+
+
+            ```bash
+            TaskTemplate:
+                ContainerSpec:
+                    Command: ["bash", "-c", "ls -1 apps > sites/apps.txt && bench set-config -g db_host $DB_HOST && bench set-config -gp db_port $DB_PORT && bench set-config -g redis_cache redis://$REDIS_CACHE && bench set-config -g redis_queue redis://$REDIS_QUEUE && bench set-config -g redis_socketio redis://$REDIS_SOCKETIO && bench set-config -gp socketio_port $SOCKETIO_PORT"]
+            ```
+    variables:
+        - id: $$cap_volume_prefix
+          label: Docker volumes prefix (Must be the same for bench setup app and frappe framework app) because we share volumes, first for app related to the bench initialization setup and then for the frappe services app.
+          defaultValue: dfp-bench
+        - id: $$cap_erpnext_version
+          label: ERPNext Version
+          defaultValue: v14.29.1
+          description: >-
+              Check out their Docker page for the valid tags https://hub.docker.com/r/frappe/erpnext/tags
+        - id: $$cap_db_host
+          label: Database host
+          defaultValue: srv-captain--global-database-db
+        - id: $$cap_db_port
+          label: Database port
+          defaultValue: 3306
+        - id: $$cap_db_root_password
+          label: Database root password
+          defaultValue: ktU4AFJ6EYJkyFyxoyEXa
+
+# By default the image used only contains the `frappe` and `erpnext` apps.
+# See https://github.com/frappe/frappe_docker/blob/main/docs/custom-apps.md
+# about using custom images.
+services:
+    $$cap_appname-bench-setup:
+        caproverExtra:
+            notExposeAsWebApp: 'true'
+        image: frappe/erpnext:$$cap_erpnext_version
+        volumes:
+            - $$cap_volume_prefix-sites:/home/frappe/frappe-bench/sites
+            - $$cap_volume_prefix-logs:/home/frappe/frappe-bench/logs
+            - $$cap_volume_prefix-apps:/home/frappe/frappe-bench/apps
+        environment:
+            DB_HOST: $$cap_db_host
+            DB_PORT: $$cap_db_port
+            DB_PASSWORD: $$cap_db_root_password
+            REDIS_CACHE: srv-captain--$$cap_appname-redis-cache:6379
+            REDIS_QUEUE: srv-captain--$$cap_appname-redis-queue:6379
+            REDIS_SOCKETIO: srv-captain--$$cap_appname-redis-socketio:6379
+            SOCKETIO_PORT: 9000

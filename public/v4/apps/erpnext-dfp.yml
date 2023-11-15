@@ -1,0 +1,319 @@
+captainVersion: 4
+caproverOneClickApp:
+    variables:
+        - id: $$cap_frappe_version
+          label: Frappe version
+          defaultValue: 15
+          description: >-
+              Check out their Docker page for the valid version numbers: https://hub.docker.com/r/frappe/erpnext/tags
+
+              Use only the number.
+          validRegex: /^[0-9]{2,}$/
+
+        - id: $$cap_db_root_pass
+          label: database root password (IMPORTANT! set your strong password!)
+          defaultValue: 123
+          description: Password for the database user and root using mysql.
+          validRegex: /.{1,}/
+
+        - id: $$cap_base_image_extra_run
+          label: Image customization
+          defaultValue: bench get-app dfp_external_storage --branch version-14 https://github.com/developmentforpeople/dfp_external_storage; bench setup requirements dfp_external_storage;
+          description: |-
+              RUN that customize your images with your specific bench commands or others (CAUTION HERE!!). You can add your own apps :). Used here to add dfp_external_storage app.
+          validRegex: /.{1,}/
+
+        - id: $$cap_site_install_app
+          label: ERPNext app installation
+          defaultValue: erpnext
+          description: With "erpnext" as value ERPNext app will be installed. If empty only Frappe app will be installed. It uses "--install-app" parameter when creating default "frontend" site.
+
+        - id: $$cap_shell_command_after_site_creation
+          label: Bash commands after creating default "frontend" site
+          defaultValue: bench --site frontend install-app dfp_external_storage
+          description: |-
+              For example install other apps (apps must be fetch within "Image customization" field). You can use several commands joined by ;. You must escape double quotes; Do not use last ; Examples:
+
+              bench --site frontend install-app dfp_external_storage insights
+
+              bench --site frontend install-app erpnext; bench setup requirements; ls -la
+
+              bench --site frontend install-app erpnext; bench setup requirements; echo \"my custom message\"
+
+        - id: $$cap_desk_admin_password
+          label: Desk Administrator password (IMPORTANT! set your strong password!)
+          defaultValue: $$cap_gen_random_hex(25)
+          description: "Password for \"Administrator\""
+          validRegex: /.{1,}/
+
+    instructions:
+        start: |-
+            Frappe Framework & ERPNext & DFP External Storage. Best, simple and open source python framework with ERP and all enterprise tools that you or your company could need (website management, file manager, user roles and permissions, HR, CRM, customizable data model, newsletters & subscriptions to email groups, ... tons of functionalities out of the box!).
+
+            https://frappeframework.com, https://erpnext.com, https://github.com/developmentforpeople/dfp_external_storage and multiple other open source apps available in the https://frappecloud.com/marketplace. DFP External Storage allows you to store all files or defined folders of your Frappe/ERPNext installation into any S3 compatible bucket(s).
+
+            Brought to you by with 🥰 by DFP (https://github.com/developmentforpeople). Do not hesitate to contact me for professional support.
+
+        end: |-
+            Important! Read this and take a screenshot so you can refer to it later!
+
+            Backend is available at http://$$cap_appname.$$cap_root_domain/app
+            Username: Administrator
+            Password: $$cap_desk_admin_password
+
+            By default, $$cap_appname-sites contains all websites info.
+
+            Now follow these steps:
+
+            1. In "frontend" app:
+            1.1. Enable websocket support
+            1.2. Enable SSL support
+            2. Remove app to delete 1
+            3. Remove app to delete 2
+
+            ¿?¿? For better performances and compliance, click on "edit default nginx configuration" button then below "proxy_set_header X-Forwarded-Proto $scheme;" add "add_header Strict-Transport-Security "max-age=15552000; includeSubDomains" always;"  into the nginx configuration.
+
+    displayName: frappe-erpnext-dfp-external-storage
+    isOfficial: true
+    description: Frappe + ERPNext + DFP External Storage
+    documentation: Check from https://github.com/developmentforpeople/dfp_external_storage
+
+########
+version: '3.3'
+services:
+
+  $$cap_appname-db:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-db-data:/var/lib/mysql
+    # ports:
+    #   - '3306:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: $$cap_db_root_pass
+    caproverExtra:
+      notExposeAsWebApp: 'true'
+      dockerfileLines:
+        - FROM mariadb:10.6
+        # Utiliza la instrucción RUN para crear el archivo de configuración con echo o printf
+        - RUN printf '[mysqld]\ncharacter-set-server=utf8mb4\ncollation-server=utf8mb4_unicode_ci\nskip-character-set-client-handshake\ninnodb-read-only-compressed=OFF\n' > /etc/mysql/conf.d/dfp-frappe.cnf
+      # innodb-read-only-compressed=OFF is a temporary fix for MariaDB 10.6
+
+
+  $$cap_appname-redis-cache: # REDIS_CACHE: redis-cache:6379
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    image: redis:6.2-alpine
+    # ports:
+    #   - '6379:6379'
+    volumes:
+      - $$cap_appname-redis-cache-data:/data
+    caproverExtra:
+      notExposeAsWebApp: 'true'
+
+
+  $$cap_appname-redis-queue: # REDIS_QUEUE: redis-queue:6379
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    image: redis:6.2-alpine
+    # ports:
+    #   - '6379:6379'
+    volumes:
+      - $$cap_appname-redis-queue-data:/data
+    caproverExtra:
+      notExposeAsWebApp: 'true'
+
+
+  $$cap_appname-config-init-please-delete-this-app:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-sites:/home/frappe/frappe-bench/sites
+    caproverExtra:
+      notExposeAsWebApp: 'true'
+      dockerfileLines:
+        - FROM frappe/erpnext:v$$cap_frappe_version
+        - RUN $$cap_base_image_extra_run
+        # - CMD ls -1 apps > sites/apps.txt; bench set-config -g db_host "srv-captain--$$cap_appname-db"; bench set-config -gp db_port 3306; bench set-config -g redis_cache "redis://srv-captain--$$cap_appname-redis-cache"; bench set-config -g redis_queue "redis://srv-captain--$$cap_appname-redis-queue"; bench set-config -g redis_socketio "redis://srv-captain--$$cap_appname-redis-queue"; bench set-config -gp socketio_port 9000; bench set-config -g webserver_port 8080; echo "IMPORTANT! Please remove this app from Caprover because it was used for some initial config and it is not needed anymore :)"; sleep infinity;
+        - |-
+          CMD ls -1 apps > sites/apps.txt; \
+              bench set-config -g db_host "srv-captain--$$cap_appname-db"; \
+              bench set-config -gp db_port 3306; \
+              bench set-config -g redis_cache "redis://srv-captain--$$cap_appname-redis-cache"; \
+              bench set-config -g redis_queue "redis://srv-captain--$$cap_appname-redis-queue"; \
+              bench set-config -g redis_socketio "redis://srv-captain--$$cap_appname-redis-queue"; \
+              bench set-config -gp socketio_port 9000; \
+              bench set-config -g webserver_port 8080; \
+              echo "IMPORTANT! Please remove this app from Caprover because it was used for some initial config and it is not needed anymore :)"; \
+              sleep infinity;
+
+  $$cap_appname-queue-short:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-sites:/home/frappe/frappe-bench/sites
+    # depends_on:
+    #   - $$cap_appname-redis-queue
+    caproverExtra:
+      # containerHttpPort: '3000'
+      notExposeAsWebApp: 'true'
+      dockerfileLines:
+        - FROM frappe/erpnext:v$$cap_frappe_version
+        - RUN $$cap_base_image_extra_run
+        - CMD bench worker --queue short,default
+
+
+  $$cap_appname-queue-long:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-sites:/home/frappe/frappe-bench/sites
+    # depends_on:
+    #   - $$cap_appname-redis-queue
+    caproverExtra:
+      # containerHttpPort: '3000'
+      notExposeAsWebApp: 'true'
+      dockerfileLines:
+        - FROM frappe/erpnext:v$$cap_frappe_version
+        - RUN $$cap_base_image_extra_run
+        - CMD bench worker --queue long,default,short
+
+
+  $$cap_appname-scheduler:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-sites:/home/frappe/frappe-bench/sites
+    caproverExtra:
+      # containerHttpPort: '3000'
+      notExposeAsWebApp: 'true'
+      dockerfileLines:
+        - FROM frappe/erpnext:v$$cap_frappe_version
+        - RUN $$cap_base_image_extra_run
+        - CMD bench schedule
+
+
+  $$cap_appname-websocket:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-sites:/home/frappe/frappe-bench/sites
+    caproverExtra:
+      # containerHttpPort: '3000'
+      notExposeAsWebApp: 'true'
+      dockerfileLines:
+        - FROM frappe/erpnext:v$$cap_frappe_version
+        - RUN $$cap_base_image_extra_run
+        - CMD node /home/frappe/frappe-bench/apps/frappe/socketio.js
+
+
+  $$cap_appname-backend:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-sites:/home/frappe/frappe-bench/sites
+    caproverExtra:
+      # containerHttpPort: '8000'
+      notExposeAsWebApp: 'true'
+      dockerfileLines:
+        - FROM frappe/erpnext:v$$cap_frappe_version
+        - RUN $$cap_base_image_extra_run
+
+
+  $$cap_appname-frontend:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-sites:/home/frappe/frappe-bench/sites
+    # depends_on:
+    #   - $$cap_appname-backend
+    #   - $$cap_appname-websocket
+    # # ports:
+    # #   - '8080:8080'
+    caproverExtra:
+      containerHttpPort: '8080'
+      dockerfileLines:
+        - FROM frappe/erpnext:v$$cap_frappe_version
+        - RUN $$cap_base_image_extra_run
+        - CMD nginx-entrypoint.sh
+    environment:
+      BACKEND: srv-captain--$$cap_appname-backend:8000
+      SOCKETIO: srv-captain--$$cap_appname-websocket:9000
+      # FRAPPE_SITE_NAME_HEADER: $host
+      FRAPPE_SITE_NAME_HEADER: frontend
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: 120
+      CLIENT_MAX_BODY_SIZE: 50m
+
+
+  $$cap_appname-config-site-please-delete-this-app:
+    # ONLY SUPPORTS: image, environment, ports, volumes, depends_on, and hostname
+    volumes:
+      - $$cap_appname-sites:/home/frappe/frappe-bench/sites
+    caproverExtra:
+      notExposeAsWebApp: 'true'
+      dockerfileLines:
+        - FROM frappe/erpnext:v$$cap_frappe_version
+        - RUN $$cap_base_image_extra_run
+        # - CMD wait-for-it -t 120 srv-captain--$$cap_appname-db:3306; wait-for-it -t 120 srv-captain--$$cap_appname-redis-cache:6379; wait-for-it -t 120 srv-captain--$$cap_appname-redis-queue:6379; custom_app="$$cap_site_install_app"; bench new-site --no-mariadb-socket --admin-password=$$cap_desk_admin_password --db-root-password=$$cap_db_root_pass ${custom_app:+--install-app "$custom_app"} --set-default frontend; echo "Enabling scheduler..."; bench enable-scheduler; custom_command="$$cap_shell_command_after_site_creation"; if [ -n "$custom_command" ]; then eval "$custom_command"; fi; echo "IMPORTANT! Please remove this app from Caprover because it was used to create main site and it is not needed anymore :)"; sleep infinity;
+        - |-
+          CMD wait-for-it -t 120 srv-captain--$$cap_appname-db:3306; \
+              wait-for-it -t 120 srv-captain--$$cap_appname-redis-cache:6379; \
+              wait-for-it -t 120 srv-captain--$$cap_appname-redis-queue:6379; \
+              custom_app="$$cap_site_install_app"; \
+              bench new-site --no-mariadb-socket --admin-password=$$cap_desk_admin_password --db-root-password=$$cap_db_root_pass ${custom_app:+--install-app "$custom_app"} --set-default frontend; \
+              echo "Enabling scheduler..."; \
+              bench enable-scheduler; \
+              custom_command="$$cap_shell_command_after_site_creation"; \
+              if [ -n "$custom_command" ]; then eval "$custom_command"; fi; \
+              echo "IMPORTANT! Please remove this app from Caprover because it was used to create main site and it is not needed anymore :)"; \
+              sleep infinity;
+
+
+# [LAPTOP: your computer] <--> [HOST: VPS or dedicated with Caprover (Docker)] >> [CONTAINERS: tons of containers ]
+
+# DB forward for local access
+# ssh -L 3306:127.0.0.1:3306 root@captain.app.comomejorar.info
+# Log with DBeaver in your localhost:3306
+
+# mysql -u root -h srv-captain--jb-db -p
+
+# bench drop-site frontend --no-backup
+
+# bench --site frontend set-admin-password [new-password]
+
+# BACKUP WITH RESTIC
+
+# # HOST: List running containers (same as Apps list within Caprover)
+# docker ps
+
+# # HOST:CONTAINER:FRONTEND: Terminal login
+# docker exec -it $(docker ps --filter name=srv-captain--frappe-front* -q) /bin/bash
+# bench --site frontend set-admin-password [new-password]
+
+
+# TODO: DELETE FROM HERE!!!!
+  # create-site:
+  #   volumes:
+  #     - sites:/home/frappe/frappe-bench/sites
+  #     - logs:/home/frappe/frappe-bench/logs
+  #   command:
+  #     - >
+  #       wait-for-it -t 120 db:3306;
+  #       wait-for-it -t 120 redis-cache:6379;
+  #       wait-for-it -t 120 redis-queue:6379;
+  #       export start=`date +%s`;
+  #       until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] && \
+  #         [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_cache // empty"` ]] && \
+  #         [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_queue // empty"` ]];
+  #       do
+  #         echo "Waiting for sites/common_site_config.json to be created";
+  #         sleep 5;
+  #         if (( `date +%s`-start > 120 )); then
+  #           echo "could not find sites/common_site_config.json with required keys";
+  #           exit 1
+  #         fi
+  #       done;
+  #       echo "sites/common_site_config.json found";
+  #       bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --set-default frontend;
+
+
+# bench set-config -g db_host "srv-captain--jb-db"
+# bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=c440763400f18d2 --install-app erpnext --set-default frontend
+
+# bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=c440763400f18d2 --install-app erpnext --set-default frontend
+
+# mysql -u root -h srv-captain--jb-db -p
+

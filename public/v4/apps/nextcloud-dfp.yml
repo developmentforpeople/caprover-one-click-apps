@@ -16,9 +16,13 @@ services:
             NEXTCLOUD_ADMIN_USER: $$cap_admin_user
             NEXTCLOUD_ADMIN_PASSWORD: $$cap_admin_pass
             NEXTCLOUD_TRUSTED_DOMAINS: $$cap_appname.$$cap_root_domain $$cap_hostnames
+            PHP_UPLOAD_LIMIT: 2000M
+            PHP_MEMORY_LIMIT: 2000M
         caproverExtra:
             dockerfileLines:
                 - FROM nextcloud:$$cap_nextcloud_version
+                #- RUN sed -i 's/524288000/50857600/g' /var/www/html/lib/private/Files/ObjectStore/S3ConnectionTrait.php
+                #- RUN sed -i 's/104857600/50857600/g' /var/www/html/lib/private/Files/ObjectStore/S3ConnectionTrait.php
                 - RUN apt update
                 - RUN apt install -y ffmpeg
                 - RUN apt clean
@@ -88,7 +92,7 @@ caproverOneClickApp:
             For better performances and compliance, click on "edit default nginx configuration" button then
             below "proxy_set_header X-Forwarded-Proto $scheme;"
             add "add_header Strict-Transport-Security "max-age=15552000; includeSubDomains" always;"  into the nginx configuration.
-
+            DFP: add "client_max_body_size 1000m;" to allow upload up to 1GB
 
             You can see HSTS parts of the nextcloud security documentation https://docs.nextcloud.com/server/21/admin_manual/installation/harden_server.html for further informations
 
